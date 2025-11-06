@@ -11,9 +11,25 @@ Target: 90%+ validation accuracy
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import sys
+from pathlib import Path
+
+# Add parent directory to path for imports
+sys.path.append(str(Path(__file__).parent.parent))
+
+# Define paths relative to script location
+SCRIPT_DIR = Path(__file__).parent
+PROJECT_DIR = SCRIPT_DIR.parent
+TRAINED_MODELS_DIR = PROJECT_DIR / 'trained_models'
+RESULTS_DIR = PROJECT_DIR / 'results'
+
+# Create directories if they don't exist
+TRAINED_MODELS_DIR.mkdir(exist_ok=True)
+RESULTS_DIR.mkdir(exist_ok=True)
+
 from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingWarmRestarts
-from datareader_highres import get_data_loaders
-from model_densenet import get_densenet_model
+from data.datareader_highres import get_data_loaders
+from models.model_densenet import get_densenet_model
 import matplotlib.pyplot as plt
 from sklearn.metrics import precision_score, recall_score, f1_score, roc_auc_score, confusion_matrix
 import numpy as np
@@ -128,8 +144,12 @@ def validate(model, val_loader, criterion, device):
     return epoch_loss, epoch_acc, precision, recall, f1, auc
 
 
-def plot_training_history(history, save_path='densenet_training_history.png'):
+def plot_training_history(history, save_path=None):
     """Plot and save training history"""
+    if save_path is None:
+        save_path = RESULTS_DIR / 'densenet_training_history.png'
+    else:
+        save_path = Path(save_path)
     fig, axes = plt.subplots(2, 2, figsize=(15, 10))
     
     # Loss
@@ -262,11 +282,11 @@ def main():
         if val_acc > best_val_acc:
             best_val_acc = val_acc
             best_val_auc = auc
-            torch.save(model.state_dict(), 'best_densenet_stage1.pth')
+            torch.save(model.state_dict(), TRAINED_MODELS_DIR / 'best_densenet_stage1.pth')
             print(f"  ✓ Best model saved! (Val Acc: {val_acc:.4f})")
     
     # Load best Stage 1 model
-    model.load_state_dict(torch.load('best_densenet_stage1.pth'))
+    model.load_state_dict(torch.load(TRAINED_MODELS_DIR / 'best_densenet_stage1.pth'))
     print(f"\n✓ Stage 1 completed! Best Val Acc: {best_val_acc:.4f}, AUC: {best_val_auc:.4f}")
     
     # ==================== STAGE 2: Full Fine-tuning ====================
@@ -322,7 +342,7 @@ def main():
             best_val_acc = val_acc
             best_val_auc = auc
             patience_counter = 0
-            torch.save(model.state_dict(), 'best_densenet_model.pth')
+            torch.save(model.state_dict(), TRAINED_MODELS_DIR / 'best_densenet_model.pth')
             print(f"  ✓ Best model saved! (Val Acc: {val_acc:.4f})")
         else:
             patience_counter += 1
@@ -339,7 +359,7 @@ def main():
     print("=" * 60)
     
     # Load best model
-    model.load_state_dict(torch.load('best_densenet_model.pth'))
+    model.load_state_dict(torch.load(TRAINED_MODELS_DIR / 'best_densenet_model.pth'))
     val_loss, val_acc, precision, recall, f1, auc = validate(model, val_loader, criterion, DEVICE)
     
     print(f"\n🎯 Best DenseNet121 Model Performance:")
@@ -361,8 +381,8 @@ def main():
     plot_training_history(history)
     
     print("\n✅ DenseNet training completed!")
-    print("✓ Best model saved as 'best_densenet_model.pth'")
-    print("✓ Training history saved as 'densenet_training_history.png'")
+    print(f"✓ Best model saved as '{TRAINED_MODELS_DIR / 'best_densenet_model.pth'}'")
+    print(f"✓ Training history saved as '{RESULTS_DIR / 'densenet_training_history.png'}'")
 
 
 if __name__ == '__main__':
